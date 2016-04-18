@@ -2,21 +2,43 @@ import * as Widget from './widget.js';
 import * as World from './world.js';
 
 export const canvas = document.getElementById('game');
-export const offscreen = document.createElement('canvas');
 export const ctx = canvas.getContext('2d', { alpha: false });
-export const os = offscreen.getContext('2d', { alpha: true });
 
 let mx = 0, my = 0
 export let mouseX = 0, mouseY = 0, mouseDown = false;
-window.onmousedown = () => {
-  mouseDown = true;
+function moveMouse(item) {
+  mx = (item.clientX - cx) * dpr / scale;
+  my = (item.clientY - cy) * dpr / scale;
+}
+window.onmousedown = e => {
+  if(!e.button) {
+    mouseDown = true;
+    moveMouse(e);
+  }
 };
-window.onmouseup = () => {
-  mouseDown = false;
+window.onmouseup = e => {
+  if(!e.button) {
+    mouseDown = false;
+  }
 };
 window.onmousemove = e => {
-  mx = (e.clientX - cx) / scale;
-  my = (e.clientY - cy) / scale;
+  moveMouse(e);
+};
+window.ontouchstart = e => {
+  if(e.targetTouches.length) {
+    mouseDown = true;
+    moveMouse(e.targetTouches[0]);
+  }
+};
+window.ontouchend = e => {
+  if(!e.targetTouches.length) {
+    mouseDown = false;
+  }
+};
+window.ontouchmove = e => {
+  if(e.targetTouches.length) {
+    moveMouse(e.targetTouches[0]);
+  }
 };
 
 const keys = {
@@ -58,7 +80,7 @@ window.onkeyup = e => {
 };
 
 let cw, ch, cx, cy;
-export let width, height, scale;
+export let width, height, scale, dpr;
 
 function resize() {
   const par = canvas.parentElement;
@@ -67,11 +89,12 @@ function resize() {
   if(w !== cw || h !== ch) {
     cw = w;
     ch = h;
-    offscreen.width = canvas.width = width = Math.ceil(w);
-    offscreen.height = canvas.height = height = Math.ceil(h);
-    scale = w / 900;
-    cx = (par.clientWidth - width) * 0.5;
-    cy = (par.clientHeight - height) * 0.5;
+    dpr = window.devicePixelRatio || 1;
+    canvas.width = width = Math.ceil(w * dpr);
+    canvas.height = height = Math.ceil(h * dpr);
+    scale = width / 900;
+    cx = (par.clientWidth - width/dpr) * 0.5;
+    cy = (par.clientHeight - height/dpr) * 0.5;
     if(w === par.clientWidth) {
       canvas.setAttribute('style', 'width:100%');
     } else {
@@ -86,7 +109,7 @@ export const widget = Widget.create(0, 0, 0);
 
 export let camera = { x: 0, y: 0 };
 
-export const bgColor = '#248';
+export const bgColor = '#248', color = '#fff';
 export const gridSize = 100;
 
 function drawGrid(x, y) {
@@ -102,7 +125,7 @@ function drawGrid(x, y) {
     ctx.moveTo(x-900-gridSize, y);
     ctx.lineTo(x+gridSize, y);
   }
-  ctx.strokeStyle = 'rgba(255,255,255,0.25)';
+  ctx.globalAlpha = 0.25;
   ctx.lineWidth = 1;
   ctx.stroke();
   ctx.restore();
@@ -118,35 +141,31 @@ export function update(t) {
   mouseY = my - 300 + camera.y;
   
   widget.update(dt);
+  World.update(dt);
   
   ctx.save();
-  
-  os.save();
-  os.setTransform(1, 0, 0, 1, 0, 0);
-  os.clearRect(0, 0, width, height);
-  os.setTransform(scale, 0, 0, scale, 0, 0);
-  os.translate(450 - camera.x, 300 - camera.y);
-  World.render(os);
-  os.lineWidth = 10;
-  os.lineJoin = 'round';
-  os.strokeStyle = 'rgba(255,255,255,0.5)';
-  os.stroke();
-  os.lineWidth = 5;
-  os.strokeStyle = bgColor;
-  os.globalCompositeOperation = 'destination-out';
-  os.stroke();
-  os.restore();
   
   ctx.setTransform(1, 0, 0, 1, 0, 0);
   ctx.fillStyle = bgColor;
   ctx.fillRect(0, 0, width, height);
-  ctx.drawImage(offscreen, 0, 0);
   ctx.setTransform(scale, 0, 0, scale, 0, 0);
   ctx.translate(450 - camera.x, 300 - camera.y);
+  ctx.strokeStyle = color;
   
-  drawGrid(camera.x - 450, camera.y - 300);
+  World.render(ctx);
+  ctx.lineWidth = 10;
+  ctx.lineJoin = ctx.lineCap = 'round';
+  ctx.globalAlpha = 0.5;
+  ctx.stroke();
+  ctx.lineWidth = 5;
+  ctx.strokeStyle = bgColor;
+  ctx.globalAlpha = 1;
+  ctx.stroke();
+  ctx.strokeStyle = color;
   
   widget.render(ctx);
+  
+  drawGrid(camera.x - 450, camera.y - 300);
   
   ctx.restore();
 }
