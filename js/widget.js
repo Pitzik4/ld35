@@ -19,10 +19,13 @@ for(let a = 0, i = 0; i < 48; i += 8) {
 }
 
 export function create(x, y, rot) {
-  let velX = 0, velY = 0, velRot = 0.2, rsign = 1;
+  let velX = 0, velY = 0, velRot = 0.2, rsign = 1, position = { x: x, y: y };
   
   function render(ctx) {
     ctx.save();
+    if(World.gotGoal(x, y)) {
+      ctx.globalAlpha = 0.5;
+    }
     ctx.translate(x, y);
     ctx.rotate(rot);
     ctx.scale(0.5, 0.5);
@@ -42,7 +45,8 @@ export function create(x, y, rot) {
   }
   
   function nearest() {
-    let position = { x: x, y: y }, nearestPoint = position, dsq = Number.MAX_VALUE;
+    let nearestPoint = position, dsq = Number.MAX_VALUE;
+    position.x = x; position.y = y;
     let cur = { x: 0, y: 0 };
     World.render({
       beginPath() {  },
@@ -66,32 +70,46 @@ export function create(x, y, rot) {
   function update(dt) {
     let dx, dy;
     if(mouseDown) {
-      dx = mouseX - x;
-      dy = mouseY - y;
+      dx = mouseX;
+      dy = mouseY;
     } else {
-      dx = dy = 0;
-      if(leftKey) dx -= 200;
-      if(rightKey) dx += 200;
-      if(upKey) dy -= 200;
-      if(downKey) dy += 200;
+      dx = x;
+      dy = y;
+      if(leftKey) dx -= 400;
+      if(rightKey) dx += 400;
+      if(upKey) dy -= 400;
+      if(downKey) dy += 400;
     }
+    dx -= x; dy -= y;
     const dsq = dx * dx + dy * dy;
-    if(dsq > 40000) {
-      const d = Math.sqrt(dsq) * 0.005;
+    if(dsq > 160000) {
+      const d = Math.sqrt(dsq) * 0.0025;
       dx /= d;
       dy /= d;
     }
     velX += (dx = dx - velX) * (1 - Math.pow(0.25, dt));
     velY += (dy = dy - velY) * (1 - Math.pow(0.25, dt));
-    const dr = Math.max(0.2, (Math.sqrt(velX*velX+velY*velY)+Math.sqrt(dx*dx+dy*dy))*0.01)*rsign;
-    velRot += (dr - velRot) * (1 - Math.pow(0.25, dt));
+    
+    const lx = x, ly = y;
     
     x += velX * dt;
     y += velY * dt;
-    rot += velRot * dt;
     
-    camera.x += (x - camera.x) * (1 - Math.pow(0.25, dt));
-    camera.y += (y - camera.y) * (1 - Math.pow(0.25, dt));
+    const n = nearest(), d = 75 / Math.sqrt(dist2(position, n));
+    x = n.x + (x - n.x) * d;
+    y = n.y + (y - n.y) * d;
+    velX = (x - lx) / dt; velY = (y - ly) / dt;
+    
+    const dr = Math.max(0.2, (Math.sqrt(velX*velX+velY*velY)+Math.sqrt(dx*dx+dy*dy))*0.01)*rsign;
+    velRot += (dr - velRot) * (1 - Math.pow(0.25, dt));
+    rot = (rot + velRot * dt) % (Math.PI / 3);
+    
+    if(World.gotGoal(x, y)) {
+      World.shapeshift();
+    }
+    
+    camera.x += (x - camera.x) * (1 - Math.pow(0.1, dt));
+    camera.y += (y - camera.y) * (1 - Math.pow(0.1, dt));
   }
   
   return Object.freeze({
@@ -101,13 +119,14 @@ export function create(x, y, rot) {
 }
 
 // http://stackoverflow.com/questions/849211/shortest-distance-between-a-point-and-a-line-segment/1501725#1501725
-function sqr(x) { return x * x }
+export function sqr(x) { return x * x }
 function dist2(v, w) { return sqr(v.x - w.x) + sqr(v.y - w.y) }
 function nearestOnSegment(p, v, w) { // point, segment vw
   const l2 = dist2(v, w);
   if (l2 === 0) return v;
   let t = ((p.x - v.x) * (w.x - v.x) + (p.y - v.y) * (w.y - v.y)) / l2;
   t = Math.max(0, Math.min(1, t));
-  return { x: v.x + t * (w.x - v.x),
-           y: v.y + t * (w.y - v.y) };
+  v.x = v.x + t * (w.x - v.x);
+  v.y = v.y + t * (w.y - v.y);
+  return v;
 }

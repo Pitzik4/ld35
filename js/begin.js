@@ -162,6 +162,7 @@ export function update(t) {
   ctx.globalAlpha = 1;
   ctx.stroke();
   ctx.strokeStyle = color;
+  World.renderGoals(ctx);
   
   widget.render(ctx);
   
